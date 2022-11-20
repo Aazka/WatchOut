@@ -19,7 +19,7 @@ public class CollectableObjectController : MonoBehaviour
             rb.constraints = RigidbodyConstraints.FreezeAll;
         }
            
-        this.gameObject.GetComponent<Renderer>().material= playerManager.collisionMaterial;
+        this.gameObject.GetComponent<Renderer>().material= playerManager.collisionMaterial[PlayerPrefs.GetInt("Skin",0)];
     }
     private void OnCollisionEnter(Collision collision)
     {
@@ -58,7 +58,7 @@ public class CollectableObjectController : MonoBehaviour
     {
         this.gameObject.GetComponent<MeshRenderer>().enabled = false;
         this.gameObject.GetComponent<BoxCollider>().enabled = false;
-        sphere.gameObject.GetComponent<Renderer>().material = playerManager.collisionMaterial;
+        sphere.gameObject.GetComponent<Renderer>().material = playerManager.collisionMaterial[PlayerPrefs.GetInt("Skin", 0)];
     }
     public void Drop()
     {

@@ -13,7 +13,7 @@ public class FirstPlayer : MonoBehaviour
         rb = this.gameObject.GetComponent<Rigidbody>();
         playerManager = PlayerManager.instance;
         playerMaterial = this.GetComponent<Renderer>().material;
-        playerMaterial = playerManager.collisionMaterial;
+        playerMaterial = playerManager.collisionMaterial[PlayerPrefs.GetInt("Skin", 0)];
         playerManager.collisionGO.Add(this.gameObject);
     }
     private void OnCollisionEnter(Collision collision)
