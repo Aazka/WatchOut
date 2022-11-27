@@ -8,8 +8,11 @@ using System.Text.RegularExpressions;
 public class CharacterSelection : MonoBehaviour
 {
     public UserData userInfo;
-    public int selectedObject = 0;
-    public Text messageText;
+    public int selectedObject = 0,coinToDecrease;
+    public Text messageText,coinDisplay;
+    public GameObject error,introPanel,leaderboardPanel,initLeaderBoardPanel,rowParent;
+    public InputField name,introName;
+    public Text welcomeText;
     public static CharacterSelection instance;
     [SerializeField] private InputField userName,age,boxSize;
     [SerializeField] private Dropdown gender;
@@ -85,11 +88,11 @@ public class CharacterSelection : MonoBehaviour
     }
     public void CheckAgeRegex()
     {
-        string pattern = @"^([0 - 9]|[1 - 9])$";
-        Regex reg = new Regex(@"^([0 - 9]|[1 - 9])$", RegexOptions.IgnoreCase);
+       // string pattern = @"^([0 - 9]|[1 - 9])$";
+        Regex reg = new Regex(@"^(\d\d)$", RegexOptions.IgnoreCase);
         Debug.Log(age.text);
         //Debug.Log(regs);
-        if(Regex.IsMatch(age.text,pattern))//reg.IsMatch(age.text))
+        if(reg.IsMatch(age.text.ToString()))//Regex.IsMatch(age.text,pattern))//reg.IsMatch(age.text))
         {
             Debug.Log("Match");
         }
@@ -101,7 +104,7 @@ public class CharacterSelection : MonoBehaviour
     }
     public void CheckBoxSizeRegex()
     {
-        Regex reg = new Regex(@"^(0?[1 - 9] |[1 - 9][0 - 9])$", RegexOptions.IgnoreCase);
+        Regex reg = new Regex(@"^(\d\d)$", RegexOptions.IgnoreCase);
         if (reg.IsMatch(boxSize.text))
         {
             Debug.Log("Match");
@@ -114,15 +117,42 @@ public class CharacterSelection : MonoBehaviour
     }
     public UserData GetDataInfo()//Save data
     {
-        return new UserData(userName.text, gender.value.ToString(),int.Parse (age.text), int.Parse(boxSize.text));
+        return new UserData(userName.text, gender.captionText.ToString(),int.Parse (age.text), int.Parse(boxSize.text));
     }
-    public void DisplayUserData(string uNmae, string uGender, int uAge, int BS)//Get Data from server
+    public void DisplayUserData(UserData userData)//Get Data from server
     {
-        userName.text = uNmae;
-        gender.value = int.Parse(uGender);
-        age.text = uAge.ToString();
-        boxSize.text = BS.ToString();
+        userName.text = userData.name;
+        gender.captionText.text=userData.gender;
+        age.text = userData.age.ToString();
+        boxSize.text = userData.boxSize.ToString();
     }
+    public void CheckIfFiledNotEmpty()
+    {
+        if(string.IsNullOrEmpty(userName.text)|| string.IsNullOrEmpty(age.text)|| string.IsNullOrEmpty(boxSize.text))
+        {
+            error.SetActive(true);
+        }
+        else
+        {
+            PlayfabManager.instance.SaveUserData();
+        }
+    }
+    public void Instant_LeaderPanel(string position,string displayName,string stats)
+    {
+        var p = Instantiate(initLeaderBoardPanel, rowParent.transform);
+        Text[] t = p.GetComponentsInChildren<Text>();
+        t[0].text = position;
+        t[1].text = displayName;
+        t[2].text = stats;
+    }
+    public void DestroyAllLeaderBoard()
+    {
+        for (int i = 0; i < rowParent.transform.childCount; i++)
+        {
+            Destroy(rowParent.transform.GetChild(i));
+        }
+    }
+    
 }
 [System.Serializable]
 public class UserData

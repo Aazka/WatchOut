@@ -2,12 +2,13 @@ using UnityEngine;
 using PlayFab;
 using PlayFab.ClientModels;
 using System.Collections.Generic;
-
+using Newtonsoft.Json;
 public class PlayfabManager : MonoBehaviour
 {
     //private string userEmail, userPassword;
     public static PlayfabManager instance;
     private int multiplier;
+    public CharacterSelection cs;
     private void Awake()
     {
         instance = this;
@@ -16,7 +17,6 @@ public class PlayfabManager : MonoBehaviour
     private void Start()
     {
         Login();
-        
     }
     public int GetMultiplier()
     {
@@ -28,7 +28,11 @@ public class PlayfabManager : MonoBehaviour
         var request = new LoginWithCustomIDRequest
         {
             CustomId = SystemInfo.deviceUniqueIdentifier,
-            CreateAccount = true
+            CreateAccount = true,
+            InfoRequestParameters = new GetPlayerCombinedInfoRequestParams
+            {
+                GetPlayerProfile = true
+            }
         };
         Debug.Log("?");
         PlayFabClientAPI.LoginWithCustomID(request, OnLoginSuccess, OnLoginReject);//Simple Annoymous account
@@ -39,12 +43,39 @@ public class PlayfabManager : MonoBehaviour
     void OnLoginSuccess(LoginResult result)// simple login success
     {
         Debug.Log("Login SuccessFull");
+        GetVirtualCurrency();
+        if (result.InfoResultPayload.PlayerProfile!=null)
+        {
+            name = result.InfoResultPayload.PlayerProfile.DisplayName;
+        }
+        if(name==null)
+        {
+            cs.introPanel.SetActive(true);
+        }
+        else
+        {
+            cs.leaderboardPanel.SetActive(true);
+            GetLeaderboard();
+        }
         GetMessage();
 
     }
+    public void SubmitNameButton()
+    {
+        var req = new UpdateUserTitleDisplayNameRequest
+        {
+            DisplayName = cs.introName.text,
+        };
+        PlayFabClientAPI.UpdateUserTitleDisplayName(req, OnDisplayNameUpdate, OnLoginReject);
+    }
+    void OnDisplayNameUpdate(UpdateUserTitleDisplayNameResult result)
+    {
+        cs.leaderboardPanel.SetActive(true);
+        GetLeaderboard();
+    }
     void OnLoginReject(PlayFabError error)// simple login reject
     {
-        Debug.Log("LoginFailed");
+        Debug.Log(error);
     }
     #endregion
     #region Leaderboard
@@ -58,7 +89,12 @@ public class PlayfabManager : MonoBehaviour
                 {
                     StatisticName="PlateformScore",
                     Value=score
-                }
+                },
+                //new StatisticUpdate
+                //{
+                //    StatisticName="PlateformName",
+                //    Value=27
+                //},
             }
         };
         PlayFabClientAPI.UpdatePlayerStatistics(request, LeaderBoardUpdate, OnLoginReject);
@@ -79,9 +115,29 @@ public class PlayfabManager : MonoBehaviour
     }
     void OnLeaderboardGet(GetLeaderboardResult result)
     {
-        foreach(var item in result.Leaderboard)
+        cs.DestroyAllLeaderBoard();
+        foreach (var item in result.Leaderboard)
         {
-            Debug.Log(item.Position + " " + item.PlayFabId + " " + item.StatValue);
+            cs.Instant_LeaderPanel(item.Position.ToString(), item.DisplayName, item.StatValue.ToString());
+            //Debug.Log(item.Position + " " + item.PlayFabId + " " + item.StatValue);
+        }
+    }
+    public void OnLeaderBoardAroundThePlayer()
+    {
+        var request = new GetLeaderboardAroundPlayerRequest
+        {
+            StatisticName = "PlateformScore",
+            MaxResultsCount = 10
+        };
+        PlayFabClientAPI.GetLeaderboardAroundPlayer(request, OnLeaderBoardGetAroundThePlayers, OnLoginReject);
+    }
+    void OnLeaderBoardGetAroundThePlayers(GetLeaderboardAroundPlayerResult result)
+    {
+        cs.DestroyAllLeaderBoard();
+        foreach (var item in result.Leaderboard)
+        {
+            cs.Instant_LeaderPanel(item.Position.ToString(), item.DisplayName, item.StatValue.ToString());
+            //Debug.Log(item.Position + " " + item.PlayFabId + " " + item.StatValue);
         }
     }
     #endregion
@@ -92,10 +148,13 @@ public class PlayfabManager : MonoBehaviour
     }
     void GetData(GetUserDataResult result)
     {
-        if(result.Data!=null&&result.Data.ContainsKey("Look"))
+        if(result.Data!=null&&result.Data.ContainsKey("Look")&& result.Data.ContainsKey("Character"))
         {
-            CharacterSelection.instance.selectedObject =int.Parse(result.Data["Look"].Value);
-            CharacterSelection.instance.SelectedObejct();
+            cs.selectedObject =int.Parse(result.Data["Look"].Value);
+            cs.SelectedObejct();
+            UserData user = JsonConvert.DeserializeObject<UserData>(result.Data["Character"].Value);
+            cs.DisplayUserData(user);
+            //cs.DisplayUserData(JsonConvert.DeserializeObject(result.Data["Character"].Value));
         }
     }
     public void SaveUserData()
@@ -104,7 +163,8 @@ public class PlayfabManager : MonoBehaviour
         {
             Data = new Dictionary<string, string>
             {
-                {"Look",CharacterSelection.instance.selectedObject.ToString() }
+                {"Look",cs.selectedObject.ToString() },
+                {"Character",JsonConvert.SerializeObject(cs.GetDataInfo()) }
             }
         };
         PlayFabClientAPI.UpdateUserData(Request, OnDataRecive, OnLoginReject);
@@ -152,9 +212,53 @@ public class PlayfabManager : MonoBehaviour
         }
         else
         {
-            CharacterSelection.instance.messageText.text = result.Data["Message"];
+            cs.messageText.text = result.Data["Message"];
             multiplier =int.Parse(result.Data["multiplier_Score"]);
         }
     }
+    #endregion
+    #region Cloud
+    public void ExcuteCloudData()
+    {
+        var request = new ExecuteCloudScriptRequest
+        {
+            FunctionName = "hello",
+            FunctionParameter = new
+            {
+                name=cs.name.text
+            }
+        };
+        PlayFabClientAPI.ExecuteCloudScript(request, OnExecuteSuccess, OnLoginReject);
+    }
+    void OnExecuteSuccess(ExecuteCloudScriptResult result)
+    {
+        cs.welcomeText.gameObject.SetActive(true);
+        cs.name.gameObject.SetActive(false);
+        cs.welcomeText.text = result.FunctionResult.ToString();
+    }
+    #endregion
+    #region Currency
+    public void GetVirtualCurrency()
+    {
+        PlayFabClientAPI.GetUserInventory(new GetUserInventoryRequest(), GetInventory, OnLoginReject);
+    }
+    void GetInventory(GetUserInventoryResult result)
+    {
+        cs.coinDisplay.text = result.VirtualCurrency["CN"].ToString();
+    }
+    public void BuyItems()
+    {
+        var request = new SubtractUserVirtualCurrencyRequest
+        {
+            VirtualCurrency = "CN",
+            Amount = cs.coinToDecrease
+        };
+        PlayFabClientAPI.SubtractUserVirtualCurrency(request, SustractItem, OnLoginReject);
+    }
+    void SustractItem(ModifyUserVirtualCurrencyResult result)
+    {
+        Debug.Log("Decrease");
+        GetVirtualCurrency();
+    }// same will goes for adding currency, but make sure to add some amount in playfab account to add select your player-> virtual currency than add some amount and save
     #endregion
 }
